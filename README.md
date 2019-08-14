@@ -58,6 +58,17 @@ runner.run(collection, {
     // Globals (a "VariableScope" from the SDK)
     globals: new sdk.VariableScope(),
 
+    // Execute a folder/request using id/name or path
+    entrypoint: {
+        // execute a folder/request using id or name
+        execute: 'folderName',
+        // idOrName in case of execute and path in case of path
+        // is chosen to specify the folder/request to be executed
+        lookupStrategy: 'path',
+        // execute a folder/request using a path
+        path: ['grand_parent_folder_idOrName', 'parent_folder_idOrName']
+    },
+
     // Configure delays (in ms)
     delay: {
         // between each request
@@ -72,20 +83,56 @@ runner.run(collection, {
     // Options specific to the requester
     requester: {
 
-        // An object compatible with the cookieJar provided by the 'postman-request' module
+        // An object compatible with the cookieJar provided by the 'postman-request' module.
+        // To limit programmatic cookie access to only whitelisted domains, add `allowProgrammaticAccess`
+        // method to the jar. Example:
+        // jar.allowProgrammaticAccess = function (domain) { return domain === 'postman-echo.com'; };
         cookieJar: jar,
 
         // Controls redirect behavior (only supported on Node, ignored in the browser)
         followRedirects: true,
 
+        // Redirect with the original HTTP method (only supported on Node, ignored in the browser)
+        followOriginalHttpMethod: false,
+
+        // Maximum number of redirects to follow (only supported on Node, ignored in the browser)
+        maxRedirects: 10,
+
+        // Maximum allowed response size in bytes (only supported on Node, ignored in the browser)
+        maxResponseSize: 1000000,
+
+        // Removes the `referer` header when a redirect happens (only supported on Node, ignored in the browser)
+        removeRefererHeaderOnRedirect: false,
+
         // Enable or disable certificate verification (only supported on Node, ignored in the browser)
         strictSSL: false,
 
-        // Enable sending of bodies with GET requests (only supported on Node, ignored in the browser)
-        sendBodyWithGetRequests: true,
+        // Enable or disable detailed request-response timings (only supported on Node, ignored in the browser)
+        timings: true,
 
-        // Allows restricting IP/host in requests
-        restrictedAddresses: {'192.168.1.1': true}
+        // Enable or disable verbose level history (only supported on Node, ignored in the browser)
+        verbose: false,
+
+        // Implicitly add `Cache-Control` system header in request (only supported on Node, ignored in the browser)
+        implicitCacheControl: true,
+
+        // Implicitly add `Postman-Token` system header in request (only supported on Node, ignored in the browser)
+        implicitTraceHeader: true,
+
+        // Extend well known "root" CAs with the extra certificates in file. The file should consist of one or more trusted certificates in PEM format. (only supported on Node, ignored in the browser)
+        extendedRootCA: 'path/to/extra/CA/certs.pem',
+
+        // network related options
+        network: {
+            hostLookup: { // hosts file configuration for dns lookup
+                type: 'hostIpMap',
+                hostIpMap: {
+                    'domain.com': '127.0.0.1',
+                    'ipv6-domain.com': '::1',
+                }
+            },
+            restrictedAddresses: {'192.168.1.1': true} // Allows restricting IP/host in requests
+        }
     },
 
     // A ProxyConfigList, from the SDK
@@ -116,7 +163,6 @@ You can pass a series of callbacks for runtime to execute as a collection is bei
 runner.run(collection, { /* options */ }, function(err, run) {
     run.start({
         // Called any time we see a new assertion in the test scripts
-        // *note* Not used yet.
         assertion: function (cursor, assertions) {
             // cursor = {
             //     position: Number,
@@ -127,7 +173,9 @@ runner.run(collection, { /* options */ }, function(err, run) {
             //     empty: Boolean,
             //     bof: Boolean,
             //     cr: Boolean,
-            //     ref: String
+            //     ref: String,
+            //     scriptId: String,
+            //     eventId: String
             // }
 
             // assertions: array of assertion objects
@@ -173,8 +221,20 @@ runner.run(collection, { /* options */ }, function(err, run) {
         },
 
         // Called after completion of an Item
-        item: function (err, cursor, item) {
-            /* Same as arguments for "beforeItem" */
+        item: function (err, cursor, item, visualizer) {
+            // err, cursor, item: Same as arguments for "beforeItem"
+
+            // visualizer: null or object containing visualizer result that looks like this:
+            //  {
+            //      -- Tmeplate processing error
+            //      error: <Error>
+            //
+            //      -- Data used for template processing
+            //      data: <Object>
+            //
+            //      -- Processed template
+            //      processedTemplate: <String>
+            //  }
         },
 
         // Called before running pre-request script(s) (Yes, Runtime supports multiple pre-request scripts!)
@@ -251,7 +311,18 @@ runner.run(collection, { /* options */ }, function(err, run) {
         },
 
         // Called just after sending a request, may include request replays
-        request: function (err, cursor, response, request, item, cookies) {
+        request: function (err, cursor, response, request, item, cookies, history) {
+            // err, cursor: Same as arguments for "start"
+            // item: sdk.Item
+
+            // response: sdk.Response
+            // request: sdk.request
+        },
+
+        // Called just after receiving the request-response without waiting for
+        // the response body or, request to end.
+        // Called once with response for each request in a collection
+        responseStart: function (err, cursor, response, request, item, cookies, history) {
             // err, cursor: Same as arguments for "start"
             // item: sdk.Item
 
@@ -260,7 +331,7 @@ runner.run(collection, { /* options */ }, function(err, run) {
         },
 
         // Called once with response for each request in a collection
-        response: function (err, cursor, response, request, item, cookies) {
+        response: function (err, cursor, response, request, item, cookies, history) {
             // err, cursor: Same as arguments for "start"
             // item: sdk.Item
 

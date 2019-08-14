@@ -3,26 +3,16 @@ require('shelljs/global');
 require('colors');
 
 var async = require('async'),
-    _ = require('lodash'),
     fs = require('fs'),
     path = require('path'),
+    expect = require('chai').expect,
     Mocha = require('mocha'),
 
-    SPEC_SOURCE_DIR = './test/system',
-
-    /**
-     * Load a JSON from file synchronously
-     *
-     * @param {String} file
-     * @returns {String}
-     */
-    loadJSON = function (file) {
-        return JSON.parse(require('fs').readFileSync(path.join(__dirname, file)).toString());
-    };
+    SPEC_SOURCE_DIR = './test/system';
 
 module.exports = function (exit) {
     // banner line
-    console.log('\nRunning system tests using mocha and nsp...'.yellow.bold);
+    console.info('\nRunning system tests using mocha...'.yellow.bold);
 
     async.series([
         // run test specs using mocha
@@ -39,45 +29,17 @@ module.exports = function (exit) {
                 });
 
                 // start the mocha run
-                mocha.run(next);
-                mocha = null; // cleanup
-            });
-        },
+                global.expect = expect; // for easy reference
 
-        // execute nsp
-        // programatically executing nsp is a bit tricky as we have to emulate the cli script's usage of internal
-        // nsp functions.
-        function (next) {
-            var nsp = require('nsp'),
-                pkg = loadJSON('../package.json'),
-                nsprc = loadJSON('../.nsprc');
+                mocha.run(function (err) {
+                    // clear references and overrides
+                    delete global.expect;
 
-            console.log('processing nsp for security vulnerabilities...\n');
-
-            // we do not pass full package for privacy concerns and also to add the ability to ignore exclude packages,
-            // hence we customise the package before we send it
-            nsp.check({
-                offline: false,
-                package: {
-                    name: pkg.name,
-                    dependencies: _.omit(pkg.dependencies, nsprc.exclusions || [])
-                }
-            }, function (err, result) {
-                // if processing nsp had an error, simply print that and exit
-                if (err) {
-                    console.error('There was an error processing NSP!\n'.red + (err.message || err).gray + '\n\n' +
-                        'Since NSP server failure is not a blocker for tests, tests are not marked as failure!');
-                    return next();
-                }
-
-                // in case an nsp vialation is found, we raise an error
-                if (result.length) {
-                    console.error(nsp.formatters.default(err, result));
-                    return next(1);
-                }
-
-                console.log('nsp ok!\n'.green);
-                return next();
+                    err && console.error(err.stack || err);
+                    next(err ? 1 : 0);
+                });
+                // cleanup
+                mocha = null;
             });
         }
     ], exit);
